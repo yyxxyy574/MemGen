@@ -11,6 +11,8 @@ export NCCL_IB_DISABLE=1
 export NCCL_P2P_DISABLE=1
 export NCCL_ASYNC_DISABLE=1
 
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
 # REASONER_MODEL="Qwen/Qwen2.5-1.5B-Instruct"
 REASONER_MODEL="/mnt/nfs_project_a/xinyi/models/Qwen3-VL-8B-Instruct"
 # WEAVER_MODEL="Qwen/Qwen2.5-1.5B-Instruct"   
@@ -33,7 +35,7 @@ LOAD_MODEL_PATH=null
 
 # train
 python -m accelerate.commands.launch \
-    --config_file=configs/zero3.yaml \
+    --config_file=configs/zero2.yaml \
     main_auto.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \

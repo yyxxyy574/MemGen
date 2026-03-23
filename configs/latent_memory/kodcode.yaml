@@ -171,6 +171,6 @@ run:
     max_response_length: 1024
     max_obs_length: 512
     temperature: 0.0
-    batch_size: 8
+    batch_size: 2
     weaver_do_sample: False
     trigger_do_sample: False
