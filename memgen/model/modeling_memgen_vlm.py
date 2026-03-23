@@ -399,6 +399,52 @@ class VLM_MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMi
         if return_augmentation_mask: return (current_input_ids, augmentation_pos)
         return current_input_ids
 
+    # =========================================================================================
+    # VANILLA MODEL GENERATION (COMMENTED OUT)
+    # Replace the current `generate` function with the one below to evaluate the vanilla model.
+    # =========================================================================================
+    # @torch.no_grad()
+    # def generate(self, input_ids, attention_mask, generation_config=None, return_augmentation_mask=False, **kwargs): 
+    #     B = input_ids.size(0)
+    #     max_new_tokens = generation_config.max_new_tokens
+    #     pad_token_id = self.tokenizer.pad_token_id
+    #     eos_token_id = self.tokenizer.eos_token_id
+    #     prompt_len = input_ids.size(1)
+    
+    #     # 1. Extract fused multimodal embeddings (essential for VLM before bypassing MemGen)
+    #     inputs_embeds = self._get_fused_multimodal_embeddings(input_ids, **kwargs)
+        
+    #     # 2. Prepare augmentation tracking mask filled with invalid token (-100)
+    #     augmentation_pos = torch.full((B, max_new_tokens), fill_value=-100, device=self.device) 
+    
+    #     # 3. Setup standard generation config bypassing the trigger/weaver
+    #     generation_config_vanilla = GenerationConfig(
+    #         do_sample=getattr(generation_config, "weaver_do_sample", False),
+    #         temperature=getattr(generation_config, "temperature", 1.0),
+    #         pad_token_id=pad_token_id,
+    #         eos_token_id=eos_token_id,
+    #         use_cache=False,
+    #         max_new_tokens=max_new_tokens
+    #     )
+    
+    #     # 4. Perform generation for all tokens using the base reasoner natively
+    #     generated = self.reasoner.generate(
+    #         inputs_embeds=inputs_embeds,
+    #         attention_mask=attention_mask,
+    #         generation_config=generation_config_vanilla
+    #     )
+        
+    #     # 5. Concatenate original inputs with generated tokens
+    #     current_input_ids = torch.cat([input_ids, generated], dim=1)
+    
+    #     # 6. Postprocess
+    #     new_generated_len = current_input_ids.size(1) - prompt_len
+    #     augmentation_pos = augmentation_pos[:, :new_generated_len]
+        
+    #     if return_augmentation_mask: 
+    #         return (current_input_ids, augmentation_pos)
+    #     return current_input_ids
+
     @classmethod
     def from_config(cls, config_dict: dict):
         model_name = config_dict.get("model_name")

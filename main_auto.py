@@ -60,6 +60,7 @@ def main():
         from memgen.runner_vlm import VLM_MemGenRunner
 
         data_builder = get_data_builder(config_dict.get("dataset"))
+        print("[DEBUG] Model config section:", config_dict.get("model"))
         model = VLM_MemGenModel.from_config(config_dict.get("model"))
         runner = VLM_MemGenRunner(model=model, data_builder=data_builder, config=config_dict, working_dir=working_dir)
     else:

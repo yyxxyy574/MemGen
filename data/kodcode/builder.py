@@ -1,4 +1,5 @@
 from datasets import DatasetDict, load_dataset
+from datasets import load_from_disk
 from typing import Dict
  
 from data.base_builder import BaseBuilder
@@ -11,7 +12,8 @@ class KodCodeBuilder(BaseBuilder):
     
     def _build_datasets(self) -> DatasetDict:
         # download dataset
-        all_dataset = load_dataset("KodCode/KodCode-Light-RL-10K") 
+        # all_dataset = load_dataset("KodCode/KodCode-Light-RL-10K") 
+        all_dataset = load_from_disk("/mnt/nfs_project_a/xinyi/datasets/KodCode-Light-RL-10K")
         all_correct_dataset = all_dataset["train"]                 
         
         # train, valid, test dataset split
