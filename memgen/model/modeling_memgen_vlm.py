@@ -478,3 +478,117 @@ class VLM_MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMi
             return cls.from_pretrained(load_path, config=memgen_config, base_processor=processor, reasoner_base_model=reasoner, weaver_base_model=weaver, trigger_base_model=trigger)
         
         return cls(memgen_config, processor, reasoner, weaver, trigger)
+
+    def save_pretrained(self, save_directory: str, **kwargs):
+        state_dict = kwargs.get("state_dict", None)
+        os.makedirs(save_directory, exist_ok=True)
+        self.config.save_pretrained(save_directory)
+
+        # 如果没有传入 state_dict (非ZeRO-3)，直接从模型中拿
+        if state_dict is None:
+            reasoner_to_weaver = self.reasoner_to_weaver.state_dict()
+            weaver_to_reasoner = self.weaver_to_reasoner.state_dict()
+            prompt_latents = self.weaver.prompt_query_latents.data
+            inference_latents = self.weaver.inference_query_latents.data
+            prompt_ln = self.weaver.prompt_latent_ln.state_dict()
+            inference_ln = self.weaver.inference_latent_ln.state_dict()
+            prompt_scale = self.weaver.prompt_latent_scale.data
+            inference_scale = self.weaver.inference_latent_scale.data
+            trigger_out = self.trigger.output_layer.state_dict()
+            weaver_peft_sd, trigger_peft_sd = None, None
+        else:
+            # ZeRO-3 环境下，从 Trainer 收集好的 state_dict 里拆解
+            reasoner_to_weaver = {k.replace("reasoner_to_weaver.", ""): v for k, v in state_dict.items() if k.startswith("reasoner_to_weaver.")}
+            weaver_to_reasoner = {k.replace("weaver_to_reasoner.", ""): v for k, v in state_dict.items() if k.startswith("weaver_to_reasoner.")}
+            prompt_latents = state_dict["weaver.prompt_query_latents"]
+            inference_latents = state_dict["weaver.inference_query_latents"]
+            prompt_ln = {k.replace("weaver.prompt_latent_ln.", ""): v for k, v in state_dict.items() if k.startswith("weaver.prompt_latent_ln.")}
+            inference_ln = {k.replace("weaver.inference_latent_ln.", ""): v for k, v in state_dict.items() if k.startswith("weaver.inference_latent_ln.")}
+            prompt_scale = state_dict["weaver.prompt_latent_scale"]
+            inference_scale = state_dict["weaver.inference_latent_scale"]
+            trigger_out = {k.replace("trigger.output_layer.", ""): v for k, v in state_dict.items() if k.startswith("trigger.output_layer.")}
+            weaver_peft_sd = {k.replace("weaver.model.", ""): v for k, v in state_dict.items() if k.startswith("weaver.model.")}
+            trigger_peft_sd = {k.replace("trigger.model.", ""): v for k, v in state_dict.items() if k.startswith("trigger.model.")}
+
+        # 保存 MemGen 专有结构
+        torch.save({"reasoner_to_weaver": reasoner_to_weaver, "weaver_to_reasoner": weaver_to_reasoner}, os.path.join(save_directory, "projs.bin"))
+        torch.save({
+            "prompt_query_latents": prompt_latents, "inference_query_latents": inference_latents,
+            "prompt_latent_ln": prompt_ln, "inference_latent_ln": inference_ln,
+            "prompt_latent_scale": prompt_scale, "inference_latent_scale": inference_scale,
+        }, os.path.join(save_directory, "weaver.bin"))
+        torch.save({"output_layer": trigger_out}, os.path.join(save_directory, "trigger.bin"))
+
+        # 保存 PEFT 模型
+        if weaver_peft_sd is not None:
+            self.weaver.model.save_pretrained(os.path.join(save_directory, "weaver"), state_dict=weaver_peft_sd)
+            self.trigger.model.save_pretrained(os.path.join(save_directory, "trigger"), state_dict=trigger_peft_sd)
+        else:
+            self.weaver.model.save_pretrained(os.path.join(save_directory, "weaver"))
+            self.trigger.model.save_pretrained(os.path.join(save_directory, "trigger"))
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        load_directory: str,
+        *,
+        config,
+        base_processor,
+        reasoner_base_model,
+        weaver_base_model,
+        trigger_base_model,
+    ):
+        model = cls(
+            config=config,
+            base_processor=base_processor,
+            reasoner_base_model=reasoner_base_model,
+            weaver_base_model=weaver_base_model,
+            trigger_base_model=trigger_base_model,
+        )
+
+        # 加载线性映射层
+        proj_path = os.path.join(load_directory, "projs.bin")
+        proj_state = torch.load(proj_path, map_location="cpu")
+        model.reasoner_to_weaver.load_state_dict(proj_state["reasoner_to_weaver"])
+        model.weaver_to_reasoner.load_state_dict(proj_state["weaver_to_reasoner"])
+
+        # 加载 Weaver 的 Latent Query 和 Normalization
+        weaver_path = os.path.join(load_directory, "weaver.bin")
+        weaver_state = torch.load(weaver_path, map_location="cpu")
+        model.weaver.prompt_query_latents.data.copy_(weaver_state["prompt_query_latents"])
+        model.weaver.inference_query_latents.data.copy_(weaver_state["inference_query_latents"])
+        model.weaver.prompt_latent_ln.load_state_dict(weaver_state["prompt_latent_ln"])
+        model.weaver.inference_latent_ln.load_state_dict(weaver_state["inference_latent_ln"])
+        model.weaver.prompt_latent_scale.data.copy_(weaver_state["prompt_latent_scale"])
+        model.weaver.inference_latent_scale.data.copy_(weaver_state["inference_latent_scale"])
+
+        # 加载 Trigger 的预测头
+        trigger_path = os.path.join(load_directory, "trigger.bin")
+        trigger_state = torch.load(trigger_path, map_location="cpu")
+        model.trigger.output_layer.load_state_dict(trigger_state["output_layer"])
+
+        from peft import PeftModel
+        from memgen.model.weaver_vlm import VLM_MemGenWeaver
+        from memgen.model.trigger_vlm import VLM_MemGenTrigger
+
+        # 加载 PEFT LoRA 权重
+        model.weaver.model = PeftModel.from_pretrained(
+            model.weaver.model.base_model,
+            os.path.join(load_directory, "weaver"),
+            adapter_name=VLM_MemGenWeaver.adapter_name,
+        )
+        model.weaver.model.set_adapter(VLM_MemGenWeaver.adapter_name)
+
+        model.trigger.model = PeftModel.from_pretrained(
+            model.trigger.model.base_model,
+            os.path.join(load_directory, "trigger"),
+            adapter_name=VLM_MemGenTrigger.adapter_name,
+        )
+        model.trigger.model.set_adapter(VLM_MemGenTrigger.adapter_name)
+
+        import logging
+        from memgen.utils import log_trainable_params
+        logging.info("##### VLM MemGen from Pretrained #####")
+        log_trainable_params(model)
+
+        return model

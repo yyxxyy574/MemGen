@@ -5,7 +5,7 @@ export TOKENIZERS_PARALLELISM=false
 export DEBUG_MODE=true
 export LOG_PATH="./debug_log_2b.txt"
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
-export MAIN_PROCESS_PORT=29507
+export MAIN_PROCESS_PORT=29512
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
 export NCCL_P2P_DISABLE=1
@@ -20,14 +20,14 @@ WEAVER_MODEL="/mnt/nfs_project_a/xinyi/models/Qwen3-VL-8B-Instruct"
 # TRIGGER_MODEL="Qwen/Qwen2.5-1.5B-Instruct"
 TRIGGER_MODEL="/mnt/nfs_project_a/xinyi/models/Qwen3-VL-8B-Instruct"
 
-DATASET_NAME="kodcode"
+DATASET_NAME="eb_habitat"
 
 TRAIN_METHOD="sft"
 
 MAX_PROMPT_AUG_NUM=1
-MAX_INFERENCE_AUG_NUM=1
-PROMPT_LATENTS_LEN=4
-INFERENCE_LATENTS_LEN=4
+MAX_INFERENCE_AUG_NUM=0
+PROMPT_LATENTS_LEN=8
+INFERENCE_LATENTS_LEN=8
 
 BATCH_SIZE=1
 
@@ -57,3 +57,4 @@ python -m accelerate.commands.launch \
     run.weaver.sft.per_device_train_batch_size ${BATCH_SIZE} \
     run.weaver.sft.bf16 True \
     run.weaver.sft.gradient_accumulation_steps 1 \
+    run.weaver.sft.max_length 16384 \

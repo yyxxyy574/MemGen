@@ -8,12 +8,14 @@ from data.gpqa.builder import GPQABuilder
 from data.gsm8k.builder import GSM8KBuilder
 from data.kodcode.builder import KodCodeBuilder
 from data.triviaqa.builder import TriviaQABuilder
+from data.eb_habitat.builder import EBHabitatBuilder
 
 _DATA_BUILDER_MAP = {
     "gpqa": GPQABuilder,
     "gsm8k": GSM8KBuilder,
     "kodcode": KodCodeBuilder,
-    "triviaqa": TriviaQABuilder
+    "triviaqa": TriviaQABuilder,
+    "eb_habitat": EBHabitatBuilder,
 }
 
 def get_data_builder(dataset_cfg) -> BaseBuilder:

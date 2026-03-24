@@ -22,13 +22,14 @@ TRIGGER_ACTIVE=False
 DATASET_NAME="kodcode"
 
 MAX_PROMPT_AUG_NUM=1
-MAX_INFERENCE_AUG_NUM=5
+MAX_INFERENCE_AUG_NUM=1
 PROMPT_LATENTS_LEN=4
 INFERENCE_LATENTS_LEN=4
 
 BATCH_SIZE=4
 
-# LOAD_MODEL_PATH="MemGen-Models/Qwen3-VL-4B-Instruct/${DATASET_NAME}/weaver-sft/pn=1_pl=8_in=0_il=8/model"
+LOAD_MODEL_PATH="/mnt/nfs_project_a/xinyi/personal_memory/MemGen/.cache/train/kodcode/Qwen3-VL-8B-Instruct/pn=1_pl=4_in=1_il=4_20260323-202148/model"
+# LOAD_MODEL_PATH=null
 
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
